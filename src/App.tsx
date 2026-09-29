@@ -87,8 +87,11 @@ export function App() {
   const [events, setEvents] = useState<OutboxEvent[]>(INITIAL_EVENTS);
 
   useEffect(() => {
-    // Conexión simulada o real mediante el adaptador del WebSocket
-    webSocketAdapter.connect("wss://echo.websocket.events");
+    const wsUrl =
+      import.meta.env.VITE_WS_OUTBOX_URL || "ws://localhost:8080/ws/outbox";
+
+    webSocketAdapter.connect(wsUrl);
+
     const unsubscribe = webSocketAdapter.subscribe((incomingEvent) => {
       setEvents((prev) => [incomingEvent, ...prev]);
     });
@@ -133,6 +136,7 @@ export function App() {
   return (
     <div className="flex flex-col min-h-screen font-sans bg-slate-50 text-slate-800">
       {/* Top Navbar */}
+      {/* Top Navbar */}
       <header className="bg-white border-b border-slate-200 px-6 py-3.5 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-3">
           <div className="p-2 text-white rounded-lg shadow-md bg-sky-600 shadow-sky-600/20">
@@ -152,6 +156,20 @@ export function App() {
         </div>
 
         <div className="flex items-center gap-4 text-xs font-medium">
+          <a
+            href="https://github.com/VictorSerradell"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-3 py-1 bg-slate-900 hover:bg-slate-800 text-slate-100 rounded-full border border-slate-700 transition"
+          >
+            <User className="w-3.5 h-3.5 text-sky-400" />
+            <span>
+              By{" "}
+              <strong className="font-semibold text-white">
+                Victor Serradell
+              </strong>
+            </span>
+          </a>
           <span className="flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full border border-emerald-200">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>{" "}
             Kafka Cluster Online
@@ -196,8 +214,23 @@ export function App() {
       </main>
 
       {/* Footer */}
+      {/* Footer */}
       <footer className="flex items-center justify-between px-6 py-3 text-xs text-center bg-white border-t border-slate-200 text-slate-500">
-        <span>Clinic Hexagonal Architecture &copy; 2026</span>
+        <div className="flex items-center gap-2">
+          <span>Clinic Hexagonal Architecture &copy; 2026</span>
+          <span>•</span>
+          <span>
+            Developed by{" "}
+            <a
+              href="https://github.com/VictorSerradell"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold transition text-sky-700 hover:text-sky-900 hover:underline"
+            >
+              Victor Serradell
+            </a>
+          </span>
+        </div>
         <span className="flex items-center gap-2">
           <Layers className="w-3.5 h-3.5 text-slate-400" /> Ports & Adapters
           React Standard
