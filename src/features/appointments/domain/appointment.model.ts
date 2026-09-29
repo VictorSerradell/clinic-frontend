@@ -1,3 +1,7 @@
+import type {
+  Appointment,
+  AppointmentStatus,
+} from "../domain/appointment.model";
 export type AppointmentStatus =
   | "Scheduled"
   | "In Consultation"
