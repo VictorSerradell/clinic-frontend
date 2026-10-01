@@ -1,0 +1,153 @@
+name: clinic-hexagonal-environment
+
+services:
+  # =========================================================================
+  # 1. ORACLE DATABASE 23ai FREE
+  # =========================================================================
+  oracle-db:
+    image: container-registry.oracle.com/database/free:23.4.0.0
+    container_name: clinic-oracle-db
+    ports:
+      - "1521:1521"
+    environment:
+      ORACLE_PWD: "ClinicPassword123!"
+      ORACLE_CHARACTERSET: "AL32UTF8"
+    volumes:
+      - oracle_data:/opt/oracle/oradata
+      # Scripts opcionales de inicialización (esquema, tablas y triggers PL/SQL)
+      # - ./init-scripts:/container-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    networks:
+      - clinic-network
+
+  # =========================================================================
+  # 2. APACHE KAFKA & ZOOKEEPER
+  # =========================================================================
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: clinic-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - clinic-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: clinic-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - clinic-network
+
+  # Kafka UI para inspeccionar topics, mensajes y conectores
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.1
+    container_name: clinic-kafka-ui
+    ports:
+      - "8081:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: clinic-local-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    depends_on:
+      - kafka
+    networks:
+      - clinic-network
+
+  # =========================================================================
+  # 3. DEBEZIUM CONNECT (CDC para Oracle DB)
+  # =========================================================================
+  debezium-connect:
+    image: debezium/connect:2.5
+    container_name: clinic-debezium-cdc
+    ports:
+      - "8083:8083"
+    environment:
+      BOOTSTRAP_SERVERS: kafka:29092
+      GROUP_ID: 1
+      CONFIG_STORAGE_TOPIC: my_connect_configs
+      OFFSET_STORAGE_TOPIC: my_connect_offsets
+      STATUS_STORAGE_TOPIC: my_connect_statuses
+      CONFIG_STORAGE_REPLICATION_FACTOR: "1"
+      OFFSET_STORAGE_REPLICATION_FACTOR: "1"
+      STATUS_STORAGE_REPLICATION_FACTOR: "1"
+      KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      INTERNAL_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      INTERNAL_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+    depends_on:
+      oracle-db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - clinic-network
+
+  # =========================================================================
+  # 4. BACKEND (Spring Boot / Quarkus BFF)
+  # =========================================================================
+  backend-api:
+    build:
+      context: ./clinic-backend
+      dockerfile: Dockerfile
+    container_name: clinic-backend-api
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:oracle:thin:@oracle-db:1521/FREEPDB1
+      SPRING_DATASOURCE_USERNAME: SYSTEM
+      SPRING_DATASOURCE_PASSWORD: "ClinicPassword123!"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on:
+      oracle-db:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - clinic-network
+
+  # =========================================================================
+  # 5. FRONTEND (React + TypeScript + Vite)
+  # =========================================================================
+  frontend:
+    build:
+      context: ./clinic-frontend
+      dockerfile: Dockerfile
+    container_name: clinic-frontend-ui
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_BASE_URL: http://localhost:8080/api/v1
+      VITE_WS_OUTBOX_URL: ws://localhost:8080/ws/outbox
+    depends_on:
+      - backend-api
+    networks:
+      - clinic-network
+
+networks:
+  clinic-network:
+    driver: bridge
+
+volumes:
+  oracle_data:
