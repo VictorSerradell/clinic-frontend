@@ -1,7 +1,7 @@
 FROM node:20-alpine AS base
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
+
+# Habilitar Corepack y fijar la versión exacta de pnpm (v8)
+RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
 
 WORKDIR /app
 
@@ -17,5 +17,5 @@ COPY . .
 # Exponer el puerto de Vite
 EXPOSE 5173
 
-# Arrancar el servidor de desarrollo escuchando en 0.0.0.0
+# Arrancar el servidor de desarrollo
 CMD ["pnpm", "dev", "--host"]
